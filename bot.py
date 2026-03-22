@@ -3,8 +3,8 @@ import requests
 from datetime import datetime, timedelta
 
 # 1. 텔레그램 설정
-TOKEN = 8791795120:AAGOQn6N0W0CcN0rXeuExyz1YMuijU8sYQw
-CHAT_ID = 6437182695
+TOKEN = '8791795120:AAGOQn6N0W0CcN0rXeuExyz1YMuijU8sYQw'
+CHAT_ID = '6437182695'
 
 # 2. 핵심 자산 티커 딕셔너리 (노이즈 제거, 핵심만)
 assets = {
