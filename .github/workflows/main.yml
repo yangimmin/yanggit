@@ -1,0 +1,41 @@
+name: Pro Trader Market Bot
+
+on:
+  schedule:
+    # 1. [18:00 KST] 유럽장 초기 반응 (UTC 09:00)
+    - cron: '0 9 * * 1-5'
+    
+    # 2. [20:00 KST] 방향 형성 구간 (UTC 11:00)
+    - cron: '0 11 * * 1-5'
+    
+    # 3. [22:00 KST] 개장 및 방향성 확정 (UTC 13:00)
+    - cron: '0 13 * * 1-5'
+    
+    # 4. [00:30 KST] 진짜 추세 확인 (UTC 15:30) - 화~토 새벽 실행
+    - cron: '30 15 * * 2-6'
+    
+    # 5. [06:00 KST] 종가 강도 확인 (UTC 21:00) - 화~토 아침 실행
+    - cron: '0 21 * * 2-6'
+
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install yfinance requests pandas
+
+    - name: Run Python script
+      run: python bot.py
