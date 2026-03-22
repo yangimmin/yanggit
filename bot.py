@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 # 1. 텔레그램 설정
 TOKEN = '8791795120:AAGOQn6N0W0CcN0rXeuExyz1YMuijU8sYQw'
-CHAT_ID = '6437182695'
+CHAT_ID = '-1003856894708'
 
 # 2. 자산 티커 딕셔너리
 assets = {
