@@ -9,150 +9,132 @@ from datetime import datetime, timedelta
 TOKEN = '8791795120:AAGOQn6N0W0CcN0rXeuExyz1YMuijU8sYQw'
 CHAT_ID = '6437182695'
 
-# 2. 핵심 자산 티커 딕셔너리
+# 2. 자산 티커 딕셔너리
 assets = {
     'S&P 500': 'ES=F',
     '나스닥 100': 'NQ=F',
-    '다우존스': 'YM=F',
-    '독일 DAX': '^GDAXI',
-    '영국 FTSE': '^FTSE',
     '미국 10년물': '^TNX',
-    '독일 10년물(Bund)': '^GDBR10',
-    '유로/달러': 'EURUSD=X',
-    '달러/엔': 'JPY=X',
     '달러/원(NDF)': 'KRW=X',
     '금(Gold)': 'GC=F',
-    'WTI유': 'CL=F'
+    'WTI유': 'CL=F',
+    '달러 인덱스': 'DX-Y.NYB' # 달러 인덱스 추가
 }
 
 def generate_trend_chart():
-    """S&P 500 및 나스닥 100의 최근 1개월 가격 및 거래량 차트 생성"""
-    plt.style.use('dark_background') # 전문가용 다크 테마
+    """S&P 500 및 나스닥 100 차트 생성"""
+    plt.style.use('dark_background')
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
     fig.suptitle('Core Index Trend & Volume (Last 30 Days)', fontsize=14, fontweight='bold')
 
     try:
-        # S&P 500 차트
         sp500 = yf.Ticker('ES=F').history(period="1mo")
         ax1.plot(sp500.index, sp500['Close'], color='#00ffcc', linewidth=2, label='S&P 500')
         ax1.set_title('S&P 500 Index', loc='left', fontsize=12)
         ax1.grid(True, linestyle='--', alpha=0.3)
-        ax1.set_ylabel('Price')
-        
-        # S&P 500 거래량 (동일 차트 하단에 바 형태로 표시)
         ax1_vol = ax1.twinx()
         ax1_vol.bar(sp500.index, sp500['Volume'], color='white', alpha=0.2, width=0.5)
-        ax1_vol.set_ylabel('Volume')
-        ax1_vol.set_ylim(0, sp500['Volume'].max() * 3) # 거래량이 가격 차트를 가리지 않도록 조정
+        ax1_vol.set_ylim(0, sp500['Volume'].max() * 3)
 
-        # 나스닥 100 차트
         nasdaq = yf.Ticker('NQ=F').history(period="1mo")
         ax2.plot(nasdaq.index, nasdaq['Close'], color='#ff33cc', linewidth=2, label='Nasdaq 100')
         ax2.set_title('Nasdaq 100 Index', loc='left', fontsize=12)
         ax2.grid(True, linestyle='--', alpha=0.3)
-        ax2.set_ylabel('Price')
-        
-        # 나스닥 100 거래량
         ax2_vol = ax2.twinx()
         ax2_vol.bar(nasdaq.index, nasdaq['Volume'], color='white', alpha=0.2, width=0.5)
-        ax2_vol.set_ylabel('Volume')
         ax2_vol.set_ylim(0, nasdaq['Volume'].max() * 3)
 
-        # X축 날짜 포맷 정리
         ax2.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-        
         plt.tight_layout()
         chart_path = 'market_trend.png'
         plt.savefig(chart_path, dpi=150)
         plt.close()
         return chart_path
-    except Exception as e:
-        print(f"차트 생성 실패: {e}")
+    except:
         return None
 
-def get_data(keys):
-    """요청받은 자산 리스트의 데이터를 정제된 텍스트로 반환"""
-    text = ""
-    for key in keys:
-        if key in assets:
-            ticker = assets[key]
-            try:
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period="5d")
-                if len(hist) < 2: continue
-                
-                current = hist['Close'].iloc[-1]
-                prev = hist['Close'].iloc[-2]
-                change_pct = ((current - prev) / prev) * 100
-                
-                sign = "▲" if change_pct > 0 else ("▼" if change_pct < 0 else "-")
-                
-                if '10년물' in key:
-                    text += f" - {key}: {current:.3f}% ({sign}{abs(change_pct):.2f}%)\n"
-                elif '원' in key or '엔' in key:
-                    text += f" - {key}: {current:.2f} ({sign}{abs(change_pct):.2f}%)\n"
-                elif '유로/달러' in key:
-                    text += f" - {key}: {current:.4f} ({sign}{abs(change_pct):.2f}%)\n"
-                else:
-                    text += f" - {key}: {current:,.2f} ({sign}{abs(change_pct):.2f}%)\n"
-            except:
-                text += f" - {key}: 데이터 확인 불가\n"
-    return text
+def get_market_data(ticker_name):
+    """단일 종목의 가격, 등락률, 그리고 시나리오 코멘트를 반환"""
+    ticker = assets[ticker_name]
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period="5d")
+        if len(hist) < 2: return None
+        
+        current = hist['Close'].iloc[-1]
+        prev = hist['Close'].iloc[-2]
+        change_pct = ((current - prev) / prev) * 100
+        sign = "▲" if change_pct > 0 else ("▼" if change_pct < 0 else "-")
+        
+        # 포맷팅
+        if '10년물' in ticker_name:
+            price_str = f"{current:.3f}%"
+        elif '원' in ticker_name or '엔' in ticker_name or '인덱스' in ticker_name:
+            price_str = f"{current:.2f}"
+        else:
+            price_str = f"{current:,.2f}"
+            
+        # 변동성에 따른 자동 매크로 코멘트 생성 알고리즘
+        comment = ""
+        if ticker_name == 'WTI유':
+            if change_pct > 1.5: comment = "인플레이션 상승 압력, 금리 인하 기대감 축소"
+            elif change_pct < -1.5: comment = "에너지 가격 안정, 인플레이션 우려 완화"
+            
+        elif ticker_name == '미국 10년물':
+            if change_pct > 1.5: comment = "단기물 동반 상승 시 달러 자산 매력도 상승 -> 위험자산 이탈 우려"
+            elif change_pct < -1.5: comment = "국채 금리 안정화 -> 기술주 및 위험자산 선호도 회복"
+            
+        elif ticker_name in ['나스닥 100', 'S&P 500']:
+            if change_pct < -1.5: comment = "위험자산 기피 심리 확산 -> 안전자산(달러) 수요 폭증"
+            elif change_pct > 1.5: comment = "위험자산 선호 심리 강화 -> 주식 시장 자금 유입"
+            
+        elif ticker_name == '달러/원(NDF)':
+            if change_pct > 0.5: comment = "고환율로 인한 외인 자금 이탈 가속화 우려 -> 코스피 하락 압박"
+            elif change_pct < -0.5: comment = "환율 안정세 -> 외인 수급 개선 및 코스피 지지력 확보 기대"
+            
+        elif ticker_name == '달러 인덱스':
+            if change_pct > 0.5: comment = "글로벌 달러 강세 독주 -> 원화 등 신흥국 통화 약세 유도"
+
+        # 코멘트가 있으면 추가, 없으면 빈칸
+        comment_str = f" -> {comment}" if comment else ""
+        return f"{ticker_name} {price_str} ({sign}{abs(change_pct):.2f}%){comment_str}"
+        
+    except:
+        return f"{ticker_name} 데이터 확인 불가"
 
 def run_report():
     now_kst = datetime.utcnow() + timedelta(hours=9)
-    hour = now_kst.hour
     
-    # 1. 차트 생성 및 전송
+    # 1. 차트 발송
     chart_file = generate_trend_chart()
     if chart_file and os.path.exists(chart_file):
         photo_url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
         with open(chart_file, 'rb') as photo:
             requests.post(photo_url, data={'chat_id': CHAT_ID}, files={'photo': photo})
     
-    # 2. 텍스트 브리핑 생성
-    title = ""
-    desc = ""
-    priority_1 = ""
-    priority_2 = ""
+    # 2. 데이터 수집 및 시나리오 작성
+    wti_data = get_market_data('WTI유')
+    bond_data = get_market_data('미국 10년물')
+    nasdaq_data = get_market_data('나스닥 100')
+    dxy_data = get_market_data('달러 인덱스')
+    krw_data = get_market_data('달러/원(NDF)')
     
-    if 17 <= hour < 19:
-        title = "[17:00] 유럽장 초기 반응 점검"
-        desc = "유럽 기관이 아시아장 결과를 소화하며 포지션을 구축하는 구간입니다. 추세가 반전되는 경우가 잦아 방향성에 대한 신뢰도는 비교적 낮습니다."
-        priority_1 = get_data(['독일 DAX', '영국 FTSE', '유로/달러', '금(Gold)', '독일 10년물(Bund)'])
-        priority_2 = get_data(['WTI유', '달러/엔'])
-    elif 19 <= hour < 21:
-        title = "[19:00] 프리마켓 방향성 형성 구간"
-        desc = "유럽장이 본 궤도에 진입하고 미국 프리마켓 참여자가 증가하면서, 금일 시장의 전체적인 윤곽이 잡히는 시점입니다."
-        priority_1 = get_data(['S&P 500', '나스닥 100', '유로/달러', '달러/엔', '금(Gold)', '미국 10년물'])
-        priority_2 = get_data(['독일 DAX', 'WTI유', '달러/원(NDF)'])
-    elif 21 <= hour < 23:
-        title = "[22:00] 미국 정규장 개장 및 당일 추세 결정"
-        desc = "글로벌 기관 자금이 본격적으로 유입되는 핵심 구간입니다. 개장 후 30~60분간의 흐름이 당일 시장의 방향성을 결정짓는 주요 지표가 됩니다."
-        priority_1 = get_data(['S&P 500', '나스닥 100', '미국 10년물', '다우존스'])
-        priority_2 = get_data(['유로/달러', '금(Gold)', 'WTI유', '달러/원(NDF)'])
-    elif 0 <= hour < 2:
-        title = "[00:30] 미국장 중반 추세 검증"
-        desc = "장 초반의 변동성이 완화되고 기관의 실제 매매 동향이 드러나는 구간입니다. 개장 직후 형성된 방향성이 유지되고 있는지 검증이 필요합니다."
-        priority_1 = get_data(['S&P 500', '나스닥 100', '미국 10년물'])
-        priority_2 = get_data(['금(Gold)', '유로/달러'])
-    elif 5 <= hour < 7:
-        title = "[06:00] 미국장 마감 및 종가 강도 확인"
-        desc = "장 마감 직전 기관의 최종 포지션 조율이 이루어집니다. 형성된 종가의 위치가 익일 아시아 시장의 방향성을 예고합니다."
-        priority_1 = get_data(['S&P 500', '나스닥 100', '다우존스', '미국 10년물'])
-        priority_2 = get_data(['달러/원(NDF)', '금(Gold)'])
-    else:
-        title = "글로벌 마켓 정기 요약"
-        desc = "주요 리스크 자산 및 안전 자산 흐름 점검"
-        priority_1 = get_data(['S&P 500', '나스닥 100', '미국 10년물', '유로/달러', '금(Gold)'])
-        priority_2 = get_data(['다우존스', '달러/원(NDF)', 'WTI유'])
-        
-    final_msg = f"{title}\n({now_kst.strftime('%Y-%m-%d %H:%M KST')})\n\n"
-    final_msg += f"[시장 브리핑]\n{desc}\n\n"
-    final_msg += f"[1순위: 핵심 점검 지표]\n{priority_1}\n"
-    if priority_2:
-        final_msg += f"[2순위: 보조 점검 지표]\n{priority_2}"
+    # 3. 최종 보고서 조립 (대표님 양식 적용)
+    final_msg = f"[매크로 시황 및 국내 시장 파급 효과 분석]\n기준일시: {now_kst.strftime('%Y-%m-%d %H:%M KST')}\n\n"
     
+    final_msg += "■ 전일 글로벌 매크로 동향 (원인)\n"
+    if wti_data: final_msg += f"1. 에너지: {wti_data}\n"
+    if bond_data: final_msg += f"2. 채권시장: {bond_data}\n"
+    if nasdaq_data: final_msg += f"3. 뉴욕증시: {nasdaq_data}\n"
+    if dxy_data: final_msg += f"4. 통화시장: {dxy_data}\n\n"
+    
+    final_msg += "■ 국내 시장 파급 효과 (결과 및 전망)\n"
+    if krw_data: final_msg += f"결과: {krw_data}\n"
+    
+    # 종합 결론
+    final_msg += "\n[Summary]\n"
+    final_msg += "글로벌 지표 변동에 따른 달러 수요 변화가 환율 방향성을 결정하고 있으며, 현재 환율 수준이 향후 코스피 외국인 수급 및 증시 향방의 핵심 트리거로 작용할 전망입니다."
+    
+    # 4. 텍스트 발송
     text_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(text_url, data={'chat_id': CHAT_ID, 'text': final_msg})
 
